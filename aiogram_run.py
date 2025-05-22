@@ -12,7 +12,7 @@ from handlers.start import start_router
 from handlers.about import about_router
 from handlers.support import support_router
 from handlers.admin_panel import admin_router
-from cache.config import admins
+from keyboards.all_keyboards import admins
 
 
 # Настройки логирования

@@ -4,10 +4,21 @@ from aiogram.fsm.context import FSMContext
 import time
 from keyboards.all_keyboards import main_keyboard, inline_keyboard_for_approve
 from states.bot_states import ProductSearch  # Убедитесь, что вы импортируете ProductSearch
-from db_handler.main_handler import insertInUsers, addRequest, updateNameRequestByUserId, updateStageRequestByUserId, cache_reviews
+from db_handler.main_handler import insertInUsers, addRequest, updateNameRequestByUserId, updateStageRequestByUserId, addResponse
+from db_handler.database_manager import DatabaseManager
+from decouple import config
 from datetime import datetime
 from parsers.findRequiredItem import findRequiredItem, findReviewsOnMarketplaces
 from gptRequests.gptRequests import gptRequest
+import json
+
+auth_params = {
+    'user': config('user'),
+    'password': config('password'),
+    'host': config('host'),
+    'port': config('port'),
+    'database': config('database')
+}
 
 start_router = Router()
 
@@ -25,7 +36,7 @@ async def cmd_start(message: types.Message):
 async def find_product_start(message: types.Message, state: FSMContext):
     data = {
         "name": "",
-        "madeAt": datetime.now(),
+        "madeat": datetime.now(),
         "success": False,
         "stage": 1,
         "user_id": message.from_user.id
@@ -93,24 +104,21 @@ async def process_callback(callback_query: types.CallbackQuery, state: FSMContex
             item_title = user_query
             responce = await gptRequest(reviews=reviews, item_title=item_title)
             
-            # Кэшируем отзывы и ответ GPT
-            print(f"Caching reviews for item: {item_title}")
-            try:
-                print(f"Reviews to cache: {reviews}")  # Добавляем логирование отзывов
-                await cache_reviews(
-                    item_title=item_title,
-                    user_query=user_query,
-                    product_url=url,
-                    wb_reviews=reviews,  # Все отзывы в одном списке
-                    ozon_reviews=[],  # Пустой список, так как все отзывы уже в wb_reviews
-                    yandex_reviews=[],  # Пустой список для yandex
-                    gpt_analysis=responce,
-                    ttl_days=7  # Хранить кэш 7 дней
-                )
-                print("Reviews cached successfully")
-            except Exception as e:
-                print(f"Error caching reviews: {str(e)}")
-                print(f"Reviews that caused error: {reviews}")  # Добавляем логирование отзывов при ошибке
+            # Get the latest request ID for this user
+            db_manager = DatabaseManager(**auth_params)
+            async with db_manager as manager:
+                query = """SELECT id FROM requests WHERE user_id = $1 ORDER BY madeat DESC LIMIT 1"""
+                latest_request = await manager.fetch_data(query, user_id)
+                if latest_request:
+                    request_id = latest_request[0]['id']
+                    # Save response to database
+                    response_data = {
+                        "request_id": request_id,
+                        "user_id": user_id,
+                        "ai_response": responce,
+                        "marketplace_reviews": json.dumps(reviews)
+                    }
+                    await addResponse(response_data)
             
             await sent_message.delete()
             await callback_query.message.answer(responce)

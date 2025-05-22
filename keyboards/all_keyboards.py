@@ -1,5 +1,7 @@
 from aiogram.types import KeyboardButton, ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
-from cache.config import admins
+
+# Список админов (заменяем импорт из cache.config)
+admins = [123456789]  # Замените на реальные ID администраторов
 
 def main_keyboard(user_telegram_id: int):
     kb_list = [

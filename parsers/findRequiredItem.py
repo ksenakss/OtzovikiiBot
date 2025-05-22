@@ -7,14 +7,13 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from parsers.ozon_parser import findRequiredItemFromOzon
 from parsers.wildberries_parser import findRequiredItemFromWb
-from db_handler.main_handler import get_cached_reviews, cache_reviews
-from parsers.driver_manager import init_driver
+from parsers.driver_manager import init_search_driver
 import asyncio
 
 def findRequiredItem(item):
     try:
         item = item.replace(" ", "%")
-        driver = init_driver()
+        driver = init_search_driver()
         print(f"Searching for item: {item}")  # Добавляем логирование
         driver.get('https://www.wildberries.ru/catalog/0/search.aspx?search=' + item)
         try:
@@ -52,7 +51,7 @@ async def findReviewsOnMarketplaces(url, user_query=None):
     try:
         print(f"Searching reviews for URL: {url}")
         # Получаем название товара из URL
-        driver = init_driver()
+        driver = init_search_driver()
         driver.get(url)
         try:
             WebDriverWait(driver, 10).until(
@@ -73,20 +72,6 @@ async def findReviewsOnMarketplaces(url, user_query=None):
         item_title = item_title.text.strip()  # Используем полное название товара
         print(f"Found product title: {item_title}")
 
-        # Проверяем кэш перед выполнением запросов
-        cached_reviews = await get_cached_reviews(item_title)
-        if cached_reviews:
-            print("Using cached reviews")
-            reviews = []
-            if cached_reviews.get('wb_reviews'):
-                reviews.extend(cached_reviews['wb_reviews'])
-            if cached_reviews.get('ozon_reviews'):
-                reviews.extend(cached_reviews['ozon_reviews'])
-            if cached_reviews.get('yandex_reviews'):
-                reviews.extend(cached_reviews['yandex_reviews'])
-            print(f"Found {len(reviews)} cached reviews")
-            return reviews
-
         print("Fetching reviews from marketplaces...")
         
         # Используем asyncio.gather для параллельного выполнения запросов
@@ -96,16 +81,6 @@ async def findReviewsOnMarketplaces(url, user_query=None):
         )
         
         print(f"Found {len(wb_reviews) if wb_reviews else 0} WB reviews and {len(ozon_reviews) if ozon_reviews else 0} Ozon reviews")
-        
-        # Сохраняем отзывы в кэш с правильным разделением
-        await cache_reviews(
-            item_title=item_title,  # Используем полное название товара
-            user_query=user_query,  # Сохраняем оригинальный запрос пользователя
-            product_url=url,
-            wb_reviews=wb_reviews if wb_reviews else [],
-            ozon_reviews=ozon_reviews if ozon_reviews else [],
-            yandex_reviews=[]  # Пока нет отзывов с Яндекс.Маркета
-        )
 
         # Объединяем отзывы для возврата
         reviews = []
