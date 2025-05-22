@@ -11,9 +11,34 @@ auth_params = {
     'database': config('database')
 }
 
+async def recreate_reviews_cache_table():
+    """Пересоздает таблицу для кэша отзывов с новыми колонками"""
+    db_manager = DatabaseManager(**auth_params)
+    async with db_manager as manager:
+        # Удаляем старую таблицу
+        async with manager.connection.acquire() as conn:
+            await conn.execute("DROP TABLE IF EXISTS reviews_cache;")
+        # Создаем новую таблицу
+        await manager.create_reviews_cache_table()
+        print("Таблица reviews_cache пересоздана с новыми колонками.")
+
+async def cleanup_duplicate_reviews():
+    db_manager = DatabaseManager(**auth_params)
+    async with db_manager as manager:
+        await manager.cleanup_duplicate_reviews()
+        print("Duplicate reviews cleaned up.")
+
 async def PostgresHandler(pg_link):
     db_manager = DatabaseManager(**auth_params)
     async with db_manager as manager:
+        # Пересоздаем таблицу для кэша отзывов
+        await recreate_reviews_cache_table()
+        print("Таблица reviews_cache пересоздана.")
+
+        # Очищаем дублирующиеся записи
+        await cleanup_duplicate_reviews()
+        print("Дублирующиеся записи очищены.")
+
         columns = {
             "id": "BIGINT PRIMARY KEY",
             "name": "VARCHAR(255)",
@@ -21,6 +46,7 @@ async def PostgresHandler(pg_link):
         }
         await manager.create_table("users", columns)
         print("Таблица users создана.")
+        
         columns = {
             "id": "BIGSERIAL PRIMARY KEY",
             "codeName": "varchar",
@@ -28,6 +54,7 @@ async def PostgresHandler(pg_link):
         }
         await manager.create_table("vocab_request_stage", columns)
         print("Таблица vocab_request_stage создана.")
+        
         codeStages = [
             "requestForTitle",
             "lookForTitle",
@@ -62,10 +89,34 @@ async def PostgresHandler(pg_link):
         await manager.create_table("requests", columns)
         print("Таблица requests создана.")
 
+# Добавляем новые функции для работы с кэшем
+async def get_cached_reviews(item_title: str):
+    db_manager = DatabaseManager(**auth_params)
+    async with db_manager as manager:
+        return await manager.get_cached_reviews(item_title)
 
-# loop = asyncio.get_event_loop()
-# loop.run_until_complete(PostgresHandler(config('PG_LINK')))
+async def cache_reviews(item_title: str, user_query: str = None, product_url: str = None,
+                       wb_reviews=None, ozon_reviews=None, yandex_reviews=None, 
+                       gpt_analysis=None, ttl_days=7):
+    db_manager = DatabaseManager(**auth_params)
+    async with db_manager as manager:
+        await manager.cache_reviews(
+            item_title=item_title,
+            user_query=user_query,
+            product_url=product_url,
+            wb_reviews=wb_reviews,
+            ozon_reviews=ozon_reviews,
+            yandex_reviews=yandex_reviews,
+            gpt_analysis=gpt_analysis,
+            ttl_days=ttl_days
+        )
 
+async def clear_expired_cache():
+    db_manager = DatabaseManager(**auth_params)
+    async with db_manager as manager:
+        await manager.clear_expired_cache()
+
+# Остальные функции остаются без изменений
 async def insertInUsers(data):
     db_manager = DatabaseManager(**auth_params)
     async with db_manager as manager:
@@ -79,7 +130,6 @@ async def addRequest(data):
     db_manager = DatabaseManager(**auth_params)
     async with db_manager as manager:
         await manager.insert_data("requests", data)
-
 
 async def updateStageRequestByUserId(newValue, user_id):
     db_manager = DatabaseManager(**auth_params)

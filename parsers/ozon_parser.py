@@ -1,21 +1,19 @@
 import re
 import time
-
-import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
 from bs4 import BeautifulSoup
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from parsers.driver_manager import init_driver
 
 def findRequiredItemFromOzon(item_title):
-    driver = uc.Chrome(headless=False, use_subprocess=False)
+    driver = init_driver()
     driver.get("https://www.ozon.ru/search/?text=" + item_title + "&from_global=true")
     try:
         WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.ID, "contentScrollPaginator"))
         )
     except Exception:
-        driver.quit()
         return
     page_html = driver.page_source
     soup = BeautifulSoup(page_html, "html.parser")
@@ -39,7 +37,6 @@ def findRequiredItemFromOzon(item_title):
             reviews = parseReviewsFromOzon("https://www.ozon.ru" + href + "reviews/", driver)
         else:
             print("Не найден соответствующий товар по индексу.")
-
     else:
         print("Не найдено значений в 'product-card__count'")
     return reviews
@@ -51,10 +48,8 @@ def parseReviewsFromOzon(url, driver):
             EC.presence_of_element_located((By.CSS_SELECTOR, "[data-review-uuid]"))
         )
     except Exception:
-        driver.quit()
         return
     page_html = driver.page_source
-    driver.quit()
     soup = BeautifulSoup(page_html, "html.parser")
     reviews = soup.find_all("div", attrs={"data-review-uuid": True})
     for i in range(len(reviews)):
