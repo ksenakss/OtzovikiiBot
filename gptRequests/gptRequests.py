@@ -1,5 +1,4 @@
 from openai import OpenAI
-import json
 
 async def gptRequest(reviews, item_title):
     if not reviews or not isinstance(reviews, list):
@@ -19,8 +18,6 @@ async def gptRequest(reviews, item_title):
             ]
         )
         analysis_result = completion.choices[0].message.content
-        
-        print(analysis_result)
         return analysis_result
     except Exception as e:
         print(f"Error in gptRequest: {str(e)}")

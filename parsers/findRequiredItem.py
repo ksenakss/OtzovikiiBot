@@ -1,17 +1,16 @@
-import re
-import time
-import concurrent.futures
 from selenium.webdriver.common.by import By
 from bs4 import BeautifulSoup
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from parsers.ozon_parser import findRequiredItemFromOzon
 from parsers.wildberries_parser import findRequiredItemFromWb
+from parsers.yandex_market_parser import findRequiredItemFromYandex
 from parsers.driver_manager import init_search_driver
 import asyncio
 
 def findRequiredItem(item):
     try:
+        print("findRequiredItem")
         item = item.replace(" ", "%")
         driver = init_search_driver()
         print(f"Searching for item: {item}")  # Добавляем логирование
@@ -26,6 +25,11 @@ def findRequiredItem(item):
 
         page_html = driver.page_source
         soup = BeautifulSoup(page_html, "html.parser")
+
+        no_results = soup.find(string=lambda text: text and "Ничего не нашлось по запросу" in text)
+        if no_results:
+            print("No items found for the search query")
+            return "no_results", None
 
         product_elements = soup.find("article", attrs={"data-nm-id": True})
         if not product_elements:
@@ -69,25 +73,29 @@ async def findReviewsOnMarketplaces(url, user_query=None):
             print("Product title not found on the page")
             return []
             
-        item_title = item_title.text.strip()  # Используем полное название товара
+        item_title = item_title.text.strip()
         print(f"Found product title: {item_title}")
 
         print("Fetching reviews from marketplaces...")
         
-        # Используем asyncio.gather для параллельного выполнения запросов
-        wb_reviews, ozon_reviews = await asyncio.gather(
+        
+        wb_reviews, ozon_reviews, yandex_reviews = await asyncio.gather(
             asyncio.to_thread(findRequiredItemFromWb, item_title),
-            asyncio.to_thread(findRequiredItemFromOzon, item_title)
+            asyncio.to_thread(findRequiredItemFromOzon, item_title),
+            asyncio.to_thread(findRequiredItemFromYandex, item_title),
         )
         
-        print(f"Found {len(wb_reviews) if wb_reviews else 0} WB reviews and {len(ozon_reviews) if ozon_reviews else 0} Ozon reviews")
+        print(f"Found {len(wb_reviews) if wb_reviews else 0} WB reviews and {len(ozon_reviews) if ozon_reviews else 0} Ozon reviews and {len(yandex_reviews) if yandex_reviews else 0} Yandex reviews")
 
-        # Объединяем отзывы для возврата
+        
         reviews = []
         if wb_reviews:
             reviews.extend(wb_reviews)
         if ozon_reviews:
             reviews.extend(ozon_reviews)
+        if yandex_reviews:
+            reviews.extend(yandex_reviews)
+
 
         if not reviews:
             print("No reviews found from any marketplace")
@@ -104,6 +112,3 @@ def cleanup():
     if driver:
         driver.quit()
         driver = None
-
-# if __name__ == "__main__":
-#     findRequiredItemOnMarketplaces("https://www.wildberries.ru/catalog/34939243/detail.aspx")

@@ -1,9 +1,8 @@
 from aiogram import Router, types
 from aiogram.filters import CommandStart, StateFilter
 from aiogram.fsm.context import FSMContext
-import time
 from keyboards.all_keyboards import main_keyboard, inline_keyboard_for_approve
-from states.bot_states import ProductSearch  # Убедитесь, что вы импортируете ProductSearch
+from states.bot_states import ProductSearch
 from db_handler.main_handler import insertInUsers, addRequest, updateNameRequestByUserId, updateStageRequestByUserId, addResponse
 from db_handler.database_manager import DatabaseManager
 from decouple import config
@@ -45,12 +44,12 @@ async def find_product_start(message: types.Message, state: FSMContext):
     await message.answer("Введите название товара для поиска:")
     await state.set_state(ProductSearch.waiting_for_query)
 
-# Обработчик сообщения от пользователя с текстом запроса
+
 @start_router.message(StateFilter(ProductSearch.waiting_for_query))
 async def process_product_query(message: types.Message, state: FSMContext):
     query = message.text
     user_id = message.from_user.id
-    print(f"Processing query from user {user_id}: {query}")  # Добавляем логирование
+    print(f"Processing query from user {user_id}: {query}")
     
     await updateNameRequestByUserId(query, user_id)
     await updateStageRequestByUserId(2, user_id)
@@ -60,11 +59,11 @@ async def process_product_query(message: types.Message, state: FSMContext):
     try:
         caption, photo_url = findRequiredItem(query)
         if not caption or not photo_url:
-            print(f"No product found for query: {query}")  # Добавляем логирование
+            print(f"No product found for query: {query}")
             await message.answer("Не удалось найти товар. Пожалуйста, попробуйте другой запрос.")
             return
 
-        print(f"Found product: {caption}")  # Добавляем логирование
+        print(f"Found product: {caption}")
         await state.update_data(url=caption)
         approval = await message.answer_photo(photo=photo_url,
                                    caption="Это тот товар? \n" + caption,
@@ -73,7 +72,7 @@ async def process_product_query(message: types.Message, state: FSMContext):
         await updateStageRequestByUserId(3, message.from_user.id)
         await state.set_state(ProductSearch.waiting_for_approval)
     except Exception as e:
-        print(f"Error in process_product_query: {str(e)}")  # Добавляем логирование
+        print(f"Error in process_product_query: {str(e)}")
         await message.answer("Произошла ошибка при поиске товара. Пожалуйста, попробуйте позже.")
 
 @start_router.callback_query(lambda callback_query: callback_query.data in ["yes", "no"])
@@ -104,14 +103,12 @@ async def process_callback(callback_query: types.CallbackQuery, state: FSMContex
             item_title = user_query
             responce = await gptRequest(reviews=reviews, item_title=item_title)
             
-            # Get the latest request ID for this user
             db_manager = DatabaseManager(**auth_params)
             async with db_manager as manager:
                 query = """SELECT id FROM requests WHERE user_id = $1 ORDER BY madeat DESC LIMIT 1"""
                 latest_request = await manager.fetch_data(query, user_id)
                 if latest_request:
                     request_id = latest_request[0]['id']
-                    # Save response to database
                     response_data = {
                         "request_id": request_id,
                         "user_id": user_id,
@@ -119,6 +116,8 @@ async def process_callback(callback_query: types.CallbackQuery, state: FSMContex
                         "marketplace_reviews": json.dumps(reviews)
                     }
                     await addResponse(response_data)
+                    
+                    await manager.update_data("requests", "success", True, "id = $2", request_id)
             
             await sent_message.delete()
             await callback_query.message.answer(responce)

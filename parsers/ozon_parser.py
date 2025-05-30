@@ -1,5 +1,4 @@
 import re
-import time
 from selenium.webdriver.common.by import By
 from bs4 import BeautifulSoup
 from selenium.webdriver.support.ui import WebDriverWait
@@ -23,22 +22,20 @@ def findRequiredItemFromOzon(item_title):
 
         page_html = driver.page_source
         soup = BeautifulSoup(page_html, "html.parser")
-        review_elements = soup.find_all(string=re.compile(r'\d+\s*отзывов'))
+        review_elements = soup.find_all(string=re.compile(r'\d+\s*(?:отзывов|отзыва)'))
         count_reviews = []
         for element in review_elements:
             try:
-                text = element.text.replace("\xa0", " ")  # Убираем неразрывные пробелы
-                number = int("".join(filter(str.isdigit, text)))  # Извлекаем число
+                text = element.text.replace("\xa0", " ")
+                number = int("".join(filter(str.isdigit, text)))
                 count_reviews.append(number)
             except ValueError:
-                continue  # Пропускаем элементы, которые не содержат числа
-
+                continue
         if count_reviews:
-            max_value = max(count_reviews)  # Находим максимальное значение
+            max_value = max(count_reviews)
             print(f"Found product with {max_value} reviews")
-            max_index = count_reviews.index(max_value)  # Получаем его индекс
+            max_index = count_reviews.index(max_value)
             product_elements = soup.find_all(class_="tile-root")
-            # Проверяем, есть ли элемент по этому индексу
             if 0 <= max_index < len(product_elements):
                 product_link = product_elements[max_index].find("a")
                 if product_link and product_link.get("href"):

@@ -1,5 +1,3 @@
-import re
-import time
 from selenium.webdriver.common.by import By
 from bs4 import BeautifulSoup
 from selenium.webdriver.support.ui import WebDriverWait
@@ -33,17 +31,16 @@ def findRequiredItemFromWb(item_title):
         count_values = []
         for element in count_elements:
             try:
-                text = element.text.replace("\xa0", " ")  # Убираем неразрывные пробелы
-                number = int("".join(filter(str.isdigit, text)))  # Извлекаем число
+                text = element.text.replace("\xa0", " ")
+                number = int("".join(filter(str.isdigit, text)))
                 count_values.append(number)
             except ValueError:
-                continue  # Пропускаем элементы, которые не содержат числа
+                continue
 
         if count_values:
-            max_value = max(count_values)  # Находим максимальное значение
-            max_index = count_values.index(max_value)  # Получаем его индекс
+            max_value = max(count_values)
+            max_index = count_values.index(max_value)
             product_elements = soup.find_all("article", attrs={"data-nm-id": True})
-            # Проверяем, есть ли элемент по этому индексу
             if 0 <= max_index < len(product_elements):
                 product_link = product_elements[max_index].find(class_='product-card__link')
                 if product_link and product_link.get("href"):
